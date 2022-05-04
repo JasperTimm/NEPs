@@ -25,7 +25,7 @@ Example use-cases:
 - ticketing, access control
 - certificates
 
-As each of these attestations would be unique, it also makes sense to build upon the existing infrastructure already built for NFTs by basing this new standard on [NEP-171](). This would mean existing software, such as wallets, have 'backwards compatibility' with these tokens, allowing it to display simple details such as title, symbol and images.
+As each of these attestations would be unique, it also makes sense to build upon the existing infrastructure already built for NFTs by basing this new standard on [NEP-171](../../neps/nep-0171.md). This would mean existing software, such as wallets, have 'backwards compatibility' with these tokens, allowing it to display simple details such as title, symbol and images.
 
 In addition, having the non-transferable nature standardised would mean that in the future, software could give users a hint in the UI that these tokens are account bound and disabling any transfer functionality.
 
@@ -35,19 +35,104 @@ One possible alternative to this standard would be to implement the non-transfer
 
 ## Specification
 
-[TODO - Needs more explanation]()From a technical standpoint the functionalities described by this standard will be a subset of the standard NFT functions, so this is not really an “extension” of the NEP-171, it is actually a subset.
+From a technical standpoint the functionality described by this standard will be a subset of the standard NFT functions as described in [NEP-171](../../neps/nep-0171.md). In general terms, it is the NEP-171 standard WITHOUT any transfer or approval/allowance functionality.
+
+### NTNFT Interface
+
+```ts
+// The base structure that will be returned for a token. If contract is using
+// extensions such as Enumeration, Metadata, or other
+// attributes may be included in this structure.
+type Token = {
+   token_id: string,
+   owner_id: string,
+ }
+
+/****************/
+/* VIEW METHODS */
+/****************/
+
+// Returns the token with the given `token_id` or `null` if no such token.
+function nft_token(token_id: string): Token|null {}
+```
+
+To be more explicit then, an interface of this standard **SHOULD NOT** include the following functions from the NEP-171 standard:
+```ts
+function nft_transfer(
+  receiver_id: string,
+  token_id: string,
+  approval_id: number|null,
+  memo: string|null,
+) {}
+
+function nft_transfer_call(
+  receiver_id: string,
+  token_id: string,
+  approval_id: number|null,
+  memo: string|null,
+  msg: string,
+): Promise {}
+
+function nft_resolve_transfer(
+  owner_id: string,
+  receiver_id: string,
+  token_id: string,
+  approved_account_ids: null|Record<string, number>,
+): boolean {}
+```
+
+### Extending core functionality
+
+Although not explicitly required by this standard, the existing Metadata ([NEP-177]()) and Enumeration ([NEP-181]()) standards may extend the interface by the usual functions, for example: `nft_metadata, nft_total_supply, nft_supply_for_owner`. It would make sense to conform as close as possible to the field names and functions as described in these standards so as to offer supporting software which already interacts with NFTs the best chances at backwards compatibility with NTNFTs.
+
+However, [NEP-178](), which pertains to approval management is not applicable for this standard.
+
+### Events
+
+When reporting events in order to conform to the event standard [NEP-297](../../neps/nep-0297.md) this standard would be similar to the events specification for NEP-171, however there would be no need for an `nft_transfer` event.
+
+More explicitly then, Non Transferable Non-Fungible Token Events MUST have `standard` set to `"nep999"`, standard version set to `"1.0.0"`, `event` value is one of `nft_mint` or `nft_burn` and `data` must be of one of the following relavant types: `NftMintLog[] | NftBurnLog[]`:
+
+```ts
+interface NftEventLogData {
+    standard: "nep999",
+    version: "1.0.0",
+    event: "nft_mint" | "nft_burn"
+    data: NftMintLog[] | NftBurnLog[],
+}
+```
+
+```ts
+// An event log to capture token minting
+// Arguments
+// * `owner_id`: "account.near"
+// * `token_ids`: ["1", "abc"]
+// * `memo`: optional message
+interface NftMintLog {
+    owner_id: string,
+    token_ids: string[],
+    memo?: string
+}
+
+// An event log to capture token burning
+// Arguments
+// * `owner_id`: owner of tokens to burn
+// * `authorized_id`: approved account_id to burn, if applicable
+// * `token_ids`: ["1","2"]
+// * `memo`: optional message
+interface NftBurnLog {
+    owner_id: string,
+    authorized_id?: string,
+    token_ids: string[],
+    memo?: string
+}
+```
 
 ## Reference Implementation
 
-The interface of an NTNFT contract is really simple, it would “inherit” the only function from NEP-171 which is not related to transferring tokens:
+[Minimum Viable Interface](https://github.com/kycdao/near-sdk-rs/blob/ntnft/near-contract-standards/src/ntnft/core/mod.rs)
 
-`function nft_token(token_id: string): Token|null {}`
-
-Although not explicitly required by this standard, the existing Metadata and Enumeration standards may extend the interface by the usual functions, for example: `nft_metadata, nft_total_supply, nft_supply_for_owner`
-
-[TODO]():
-- More in-depth description with source code for the implementation.
-- Discuss examples described above and how they'd use these functions.
+[NFT Implementation](https://github.com/kycdao/near-sdk-rs/blob/ntnft/near-contract-standards/src/ntnft/core/core_impl.rs)
 
 ## Unresolved Issues
 
@@ -71,7 +156,7 @@ There are a few natural extensions to this standard which might be considered in
 
 The first is setting a standard for an 'authenticated account recovery' process. If such a process, like that described above, were standardised it would give users confidence that their NTNFTs would not be lost if they need to migrate to a new account. It would also enable frontend software to assist users in the account recovery process when they know the contract supports it.
 
-Other future NEPs might focus on more specific metadata which the NTNFT would provide, for specific use-cases. An example could be for when the NTNFT is used for KYC purposes that the metadata should specifically include fields such as `expiry date, validity and KYC_level`.
+Other future NEPs might focus on more specific metadata which the NTNFT would provide, for specific use-cases. An example could be for when the NTNFT is used for KYC purposes that the metadata should specifically include fields such as `expiry date`, `validity` and `KYC_level`.
 
 ## Copyright
 [copyright]: #copyright
